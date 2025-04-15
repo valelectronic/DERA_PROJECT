@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes.js';
+import { connectDB } from './lib/db.js';
  
 dotenv.config();
 const app = express();
@@ -12,8 +13,8 @@ app.use(express.json());
 //routes
 app.use("/api/auth",authRoutes)
 
-
 app.listen(port,() => {
     
     console.log(` Server is running on http://localhost:${port}`);
+    connectDB()
 });
