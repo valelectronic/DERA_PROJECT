@@ -1,12 +1,40 @@
 import express from 'express';
+import User from '../models/user.model.js'; // Import the User model
+import bcrypt from 'bcryptjs'; // Import bcrypt for password hashing
 
 
 // for signing up a user
 export const signUp = async(req, res) => {
+const { name, email, password } = req.body;
+try {
+    
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: "Please fill all fields" });
+    }
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+        return res.status(400).json({ message: "User already exists" });
+    }
+    // Create new user
+    const newUser = new User({ name, email, password });
+    await newUser.save();
+
+    //authenticate user
+    
+    
+
+    res.status(201).json({ message: "User created successfully" })
+
+} catch (error) {
+    console.error("Error signing up user:", error);
+    res.status(500).json({ message: error.message });
+    
+}
 
 
 
-res.send("signup Up Route")
+
 
 
 
