@@ -1,6 +1,6 @@
 import express from 'express';
 import User from '../models/user.model.js'; // Import the User model
-import bcrypt from 'bcryptjs'; // Import bcrypt for password hashing
+
 
 
 // for signing up a user
