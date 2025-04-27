@@ -75,22 +75,58 @@ try {
 }
 
 
-
-
-
-
-
     
 }
 
 
 export const logIn = async(req, res) => {
-    res.send("login Up Route")
+    try {
+		const { email, password } = req.body;
+
+        // Validate input
+        if (!email || !password) { 
+            return res.status(400).json({ message: "Please fill all fields" });
+        }
+        // Check if user exists
+		const user = await User.findOne({ email });
+
+		if (user && (await user.comparePassword(password))) {
+			const { accessToken, refreshToken } = generateTokens(user._id);
+			await storeRefreshToken(user._id, refreshToken);
+			setCookies(res, accessToken, refreshToken);
+
+			res.json({
+				_id: user._id,
+				name: user.name,
+				email: user.email,
+				role: user.role,
+			});
+		} else {
+			res.status(400).json({ message: "Invalid email or password" });
+		}
+	} catch (error) {
+		console.log("Error in login controller", error.message);
+		res.status(500).json({ message: error.message });
+	}
     
 }
 
 
 export const logOut = async(req, res) => {
-    res.send("logout Up Route")
+    try {
+		const refreshToken = req.cookies.refreshToken;
+		if (refreshToken) {
+			const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+			await redis.del(`refresh_token:${decoded.userId}`);
+		}
+
+		res.clearCookie("accessToken");
+		res.clearCookie("refreshToken");
+		res.json({ message: "Logged out successfully" });
+	} catch (error) {
+		console.log("Error in logout controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
     
 }
+
