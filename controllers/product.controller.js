@@ -1,6 +1,15 @@
+import Product from "../models/product.model.js"; // Import the Product model
+
+
 
 
 
 export const getAllProducts = async (req, res) => {
-res.send("All products")
-}
+	try {
+		const products = await Product.find({}); // find all products
+		res.json({ products });
+	} catch (error) {
+		console.log("Error in getAllProducts controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
