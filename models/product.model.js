@@ -24,14 +24,6 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: [true, "Image is required"],
     },
-    isaAvailable: {
-        type: Boolean,
-        default: true,
-    },
-    rating: {
-        type: Number,
-        default: 0,
-    },
     isFeatured: {
         type: Boolean,
         default: false,
