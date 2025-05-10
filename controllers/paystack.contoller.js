@@ -74,9 +74,15 @@ export const createCheckoutSession = async (req, res) => {
             totalAmount += amount * product.quantity;
 
             return {
-                name: product.name,
-                amount: amount, // Price per item in kobo
-                quantity: product.quantity || 1, // Default to 1 if no quantity is specified
+                price_data: {
+                    currency: "NGN",
+                    product_data: {
+                        name: product.name,
+                        images: [product.image], // Assuming product has an image field
+                    },
+                    unit_amount: amount, // Price per item in kobo
+                },
+                quantity: product.quantity, // Quantity of the product
             };
         });
 
