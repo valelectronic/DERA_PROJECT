@@ -1,13 +1,15 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import Order from '../models/order.model.js';
+import Coupon from '../models/coupon.model.js';
+import axios from 'axios';
 
 dotenv.config();
 
-export const paystackWebhook = async (req, res) => {
+export const payStackWebhook = async (req, res) => {
   try {
-    const paystackSignature = req.headers['x-paystack-signature'];
-    const eventBody = JSON.stringify(req.body); // Corrected
+    const payStackSignature = req.headers['x-payStack-signature'];
+    const eventBody = JSON.stringify(req.body);
 
     // Generate hash using the secret key to validate the webhook
     const hash = crypto
@@ -15,7 +17,7 @@ export const paystackWebhook = async (req, res) => {
       .update(eventBody)
       .digest('hex');
 
-    if (hash !== paystackSignature) {
+    if (hash !== payStackSignature) {
       return res.status(401).json({ message: 'Invalid signature' });
     }
 
@@ -55,4 +57,88 @@ export const paystackWebhook = async (req, res) => {
     console.error('Error processing webhook:', error);
     return res.status(500).json({ message: 'Internal server error' });
   }
+};
+
+export const createCheckoutSession = async (req, res) => {
+    try {
+        const { products, couponCode } = req.body;
+
+        if (!Array.isArray(products) || products.length === 0) {
+            return res.status(400).json({ error: "Invalid or empty products array" });
+        }
+
+        let totalAmount = 0;
+
+        const lineItems = products.map((product) => {
+            const amount = Math.round(product.price * 100); // Convert price to kobo (Paystack works with kobo)
+            totalAmount += amount * product.quantity;
+
+            return {
+                name: product.name,
+                amount: amount, // Price per item in kobo
+                quantity: product.quantity || 1, // Default to 1 if no quantity is specified
+            };
+        });
+
+        let coupon = null;
+        if (couponCode) {
+            coupon = await Coupon.findOne({ code: couponCode, userId: req.user._id, isActive: true });
+            if (coupon) {
+                const discountAmount = Math.round((totalAmount * coupon.discountPercentage) / 100);
+                totalAmount -= discountAmount; // Apply discount to the total
+            }
+        }
+
+        // Paystack checkout creation
+        const paystackData = {
+            email: req.user.email, // Customer email
+            amount: totalAmount, // Total amount after coupon (in kobo)
+            reference: `order_${new Date().getTime()}`, // Unique reference for the transaction
+            callback_url: `${process.env.CLIENT_URL}/purchase-success`, // URL where Paystack will send the user after payment
+            metadata: {
+                userId: req.user._id.toString(),
+                couponCode: couponCode || "",
+                products: JSON.stringify(
+                    products.map((p) => ({
+                        id: p._id,
+                        quantity: p.quantity,
+                        price: p.price,
+                    }))
+                ),
+            },
+        };
+
+        // Send request to Paystack API to create a payment page
+        const paystackResponse = await axios.post(
+            'https://api.paystack.co/transaction/initialize',
+            paystackData,
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                },
+            }
+        );
+
+        const paymentLink = paystackResponse.data.data.authorization_url;
+
+        // After successful checkout, create the order
+        const newOrder = new Order({
+            user: req.user._id,
+            products: products.map((product) => ({
+                product: product._id,
+                quantity: product.quantity,
+                price: product.price,
+            })),
+            totalAmount: totalAmount / 100, // Convert back to Naira
+            paystackReference: paystackResponse.data.data.reference,
+        });
+
+        await newOrder.save();
+
+        res.status(200).json({ paymentLink }); // Return the Paystack payment link to the frontend
+
+    } catch (error) {
+        console.error("Error processing checkout:", error);
+        res.status(500).json({ message: "Error processing checkout", error: error.message });
+    }
 };
